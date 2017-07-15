@@ -20,7 +20,8 @@ if (argv['h'] || argv['help']) {
 }
 
 if (argv['v'] || argv['version']) {
-  // TODO: show version and gracefully exit with 0
+  console.log(`elm-docs version: ${VERSION}`);
+  process.exit(0);
 }
 
 const OUTPUT = argv['o'] || argv['output'] || 'DOCS.md';
