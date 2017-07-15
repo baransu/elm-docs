@@ -13,7 +13,7 @@ const ELM_PACKAGE_PATH = path.join(WORKING_DIR, 'elm-package.json');
 const ELM_MAKE_DOCS_OUTPUT = path.join(WORKING_DIR, TMP_DOCS);
 
 const argv = require('minimist')(process.argv.slice(2));
-console.log(argv);
+// console.log(argv);
 
 if (argv['h'] || argv['help']) {
   // TODO: show help and gracefully exit with 0
@@ -33,7 +33,12 @@ if (isElmPackagePresent) {
       if (err) throw err;
       fs.unlinkSync(ELM_MAKE_DOCS_OUTPUT);
       const data = JSON.parse(file);
-      const modules = data.map(mapModule).join('\n');
+      const version = data[0]['generated-with-elm-version'];
+      const modules = data.map(mapModule).join('\n').concat(
+        `---
+> Generated with elm-make: ${version} and elm-docs: ${VERSION}`
+      );
+
       // TODO: spis tresci
       fs.writeFileSync(path.join(WORKING_DIR, OUTPUT), modules);
     });
@@ -45,7 +50,6 @@ if (isElmPackagePresent) {
 }
 
 function mapModule(module) {
-  const version = module['generated-with-elm-version'];
   const { name, comment } = module;
   // {
   //   name -> file name
@@ -86,34 +90,59 @@ function mapModule(module) {
     .join('\n');
 
   return `
-## ${name}
-
+# ${name}
 ${moduleBody}
-> Generated with elm-make: ${version} and elm-docs: ${VERSION}
----
 `;
 }
 
 function mapType(dict, type) {
-  return dict;
+  const { name, comment, args, cases } = type;
+  const string = `
+#### \`type ${name}\`
+\`\`\`elm
+type ${name} ${args.join(' ')}
+    = ${cases.map(c => `${c[0]} ${c[1].join(' ')}`).join('\n    | ')}
+\`\`\`
+${comment}
+`;
+  return Object.assign({}, dict, { [name]: string });
 }
 
 function mapAlias(dict, alias) {
-  return dict;
+  const { name, comment, type, args } = alias;
+  const string = `
+#### \`${name}\`
+\`\`\`elm
+type alias ${name} ${args.join(' ')} =
+    ${type}
+\`\`\`
+${comment}
+`;
+  return Object.assign({}, dict, { [name]: string });
 }
 
 function mapValue(dict, value) {
   const { name, type, comment } = value;
+  const regex = /^([\s]{4}.*)+/gm;
+  const wrapper = match =>
+    `\`\`\`elm\n${match
+      .split('\n')
+      .filter(l => l.length > 0)
+      .map(l => l.replace(/^\s{4}/g, ''))
+      .join('\n')}\n\`\`\``;
+
   const string = `
-#### \`${name} : ${type}\`
+#### \`${name}\`
+\`\`\`elm
+${name} : ${type}
+\`\`\`
 ${comment}
-`;
-  // TODO: add comment parsing for elm code samples
+`.replace(regex, wrapper);
   return Object.assign({}, dict, { [name]: string });
 }
 
 function mapCommentLine(line, dict) {
-  // starts with @docs -> throw away
+  // starts with @docs -> get from dict
   const docsTest = /^@docs\s/;
   if (docsTest.test(line)) {
     return line.replace(docsTest, '').split(',').map(key => dict[key]).join('');
