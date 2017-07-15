@@ -51,27 +51,6 @@ if (isElmPackagePresent) {
 
 function mapModule(module) {
   const { name, comment } = module;
-  // {
-  //   name -> file name
-  //   comment -> module description
-  //   aliases -> aliastes present in module
-  //     {
-  //     }
-  //   types -> types present in module
-  //     {
-  //       name
-  //       comment
-  //       args,
-  //       cases ->
-  //     }
-  //   values -> functions present in module
-  //     {
-  //       name
-  //       comment
-  //       type
-  //     }
-  //   generated-with-elm-version -> elm version
-  // }
   const mapFunctions = {
     aliases: mapAlias,
     types: mapType,
@@ -80,7 +59,7 @@ function mapModule(module) {
 
   const dict = Object.keys(mapFunctions).reduce(
     (acc, key) => module[key].reduce(mapFunctions[key], acc),
-    {}
+    { '@@module': name }
   );
 
   const moduleBody = comment
@@ -136,7 +115,7 @@ function mapValue(dict, value) {
   const string = `
 ### \`${name}\`
 \`\`\`elm
-${name} : ${type}
+${name} : ${type.replace(new RegExp(`${dict['@@module']}.`, 'g'), '')}
 \`\`\`
 ${comment}
 ---
