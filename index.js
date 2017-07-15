@@ -98,12 +98,13 @@ ${moduleBody}
 function mapType(dict, type) {
   const { name, comment, args, cases } = type;
   const string = `
-#### \`type ${name}\`
+### \`type ${name}\`
 \`\`\`elm
 type ${name} ${args.join(' ')}
     = ${cases.map(c => `${c[0]} ${c[1].join(' ')}`).join('\n    | ')}
 \`\`\`
 ${comment}
+---
 `;
   return Object.assign({}, dict, { [name]: string });
 }
@@ -111,12 +112,13 @@ ${comment}
 function mapAlias(dict, alias) {
   const { name, comment, type, args } = alias;
   const string = `
-#### \`${name}\`
+### type alias \`${name}\`
 \`\`\`elm
 type alias ${name} ${args.join(' ')} =
     ${type}
 \`\`\`
 ${comment}
+---
 `;
   return Object.assign({}, dict, { [name]: string });
 }
@@ -132,11 +134,12 @@ function mapValue(dict, value) {
       .join('\n')}\n\`\`\``;
 
   const string = `
-#### \`${name}\`
+### \`${name}\`
 \`\`\`elm
 ${name} : ${type}
 \`\`\`
 ${comment}
+---
 `.replace(regex, wrapper);
   return Object.assign({}, dict, { [name]: string });
 }
@@ -145,7 +148,11 @@ function mapCommentLine(line, dict) {
   // starts with @docs -> get from dict
   const docsTest = /^@docs\s/;
   if (docsTest.test(line)) {
-    return line.replace(docsTest, '').split(',').map(key => dict[key]).join('');
+    return line
+      .replace(docsTest, '')
+      .split(', ')
+      .map(key => dict[key])
+      .join('');
   }
   // starts with # -> append ##
   if (/^#\s[a-z]/i.test(line)) return `#${line}`;
