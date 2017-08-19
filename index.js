@@ -11,12 +11,17 @@ const TMP_DOCS = '.elm-docs';
 const WORKING_DIR = process.cwd();
 const ELM_PACKAGE_PATH = path.join(WORKING_DIR, 'elm-package.json');
 const ELM_MAKE_DOCS_OUTPUT = path.join(WORKING_DIR, TMP_DOCS);
+const DOCS_TEST = /^@docs\s/;
+
+// NOTE: We have to store all used names for propert anchor creation
+let usedNames = [];
 
 const argv = require('minimist')(process.argv.slice(2));
-// console.log(argv);
 
 if (argv['h'] || argv['help']) {
   // TODO: show help and gracefully exit with 0
+  console.log('Help:');
+  process.exit(0);
 }
 
 if (argv['v'] || argv['version']) {
@@ -34,14 +39,29 @@ if (isElmPackagePresent) {
       if (err) throw err;
       fs.unlinkSync(ELM_MAKE_DOCS_OUTPUT);
       const data = JSON.parse(file);
-      const version = data[0]['generated-with-elm-version'];
-      const modules = data.map(mapModule).join('\n').concat(
-        `---
-> Generated with elm-make: ${version} and elm-docs: ${VERSION}`
-      );
+      const count = data.length;
+      if (count === 0) {
+        console.log('Found 0 modules from elm-make --docs');
+        process.exit(1);
+      }
 
-      // TODO: spis tresci
+      const version = data[0]['generated-with-elm-version'];
+
+      const tableOfContent = data
+        .map(module => `- [${module.name}](#${makeAnchor(module.name)})`)
+        .join('\n');
+
+      const modules = `
+# Modules
+${tableOfContent}
+${data.map(mapModule).join('\n')}
+> Generated with elm-make: ${version} and elm-docs: ${VERSION}
+`;
+
       fs.writeFileSync(path.join(WORKING_DIR, OUTPUT), modules);
+      console.log(
+        `Successfully generated documentation for ${count} modules into ${OUTPUT}`
+      );
     });
   });
 } else {
@@ -50,8 +70,32 @@ if (isElmPackagePresent) {
   );
 }
 
+function sanitizeKey(key) {
+  return key.trim().replace(/\(|\)/g, '');
+}
+
+function getUsedNames(module) {
+  return module.comment.split('\n').reduce((acc, line) => {
+    if (DOCS_TEST.test(line)) {
+      return acc.concat(
+        line.replace(DOCS_TEST, '').split(', ').map(sanitizeKey)
+      );
+    }
+    return acc;
+  }, []);
+}
+
+function makeAnchor(name) {
+  const duplicates = usedNames.filter(p => p === name).length;
+  const suffix = duplicates > 1 ? `-${duplicates - 1}` : '';
+  return name.toLowerCase().replace(/\./g, '').replace(/\s/g, '-') + suffix;
+}
+
 function mapModule(module) {
   const { name, comment } = module;
+  // NOTE: We're storing all previously used names for proper anchoring
+  usedNames = usedNames.concat(getUsedNames(module));
+
   const mapFunctions = {
     aliases: mapAlias,
     types: mapType,
@@ -69,8 +113,14 @@ function mapModule(module) {
     .filter(l => l.length > 0)
     .join('\n');
 
+  const definitions = getUsedNames(module)
+    .map(name => `- [${name}](#${makeAnchor(name)})`)
+    .join('\n');
+
   return `
 # ${name}
+${definitions}
+
 ${moduleBody}
 `;
 }
@@ -78,7 +128,7 @@ ${moduleBody}
 function mapType(dict, type) {
   const { name, comment, args, cases } = type;
   const string = `
-### \`type ${name}\`
+### \`${name}\`
 \`\`\`elm
 type ${name} ${args.join(' ')}
     = ${cases.map(c => `${c[0]} ${c[1].join(' ')}`).join('\n    | ')}
@@ -92,7 +142,7 @@ ${comment}
 function mapAlias(dict, alias) {
   const { name, comment, type, args } = alias;
   const string = `
-### type alias \`${name}\`
+### \`${name}\`
 \`\`\`elm
 type alias ${name} ${args.join(' ')} =
     ${type}
@@ -126,12 +176,11 @@ ${comment}
 
 function mapCommentLine(line, dict) {
   // starts with @docs -> get from dict
-  const docsTest = /^@docs\s/;
-  if (docsTest.test(line)) {
+  if (DOCS_TEST.test(line)) {
     return line
-      .replace(docsTest, '')
+      .replace(DOCS_TEST, '')
       .split(', ')
-      .map(key => dict[key])
+      .map(key => dict[sanitizeKey(key)])
       .join('');
   }
   // starts with # -> append ##
