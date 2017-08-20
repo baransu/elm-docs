@@ -1,6 +1,5 @@
 #! /usr/bin/env node
 
-const { compileToString } = require('node-elm-compiler');
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
