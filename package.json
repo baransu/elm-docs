@@ -1,7 +1,13 @@
 {
   "name": "elm-docs",
-  "version": "0.2.0",
-  "keywords": ["documentation", "docs", "generator", "elm-make", "elm"],
+  "version": "0.2.1",
+  "keywords": [
+    "documentation",
+    "docs",
+    "generator",
+    "elm-make",
+    "elm"
+  ],
   "description": "Markdown documentation generator for elm-make compatible projects",
   "repository": {
     "type": "git",
@@ -11,7 +17,9 @@
   "bugs": {
     "url": "https://github.com/baransu/elm-docs/issues"
   },
-  "files": ["index.js"],
+  "files": [
+    "index.js"
+  ],
   "bin": {
     "elm-docs": "./index.js"
   },
