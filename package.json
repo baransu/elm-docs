@@ -1,14 +1,20 @@
 {
   "name": "elm-docs",
   "version": "0.2.0",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
+  "keywords": ["documentation", "docs", "generator", "elm-make", "elm"],
+  "description": "Markdown documentation generator for elm-make compatible projects",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/baransu/elm-docs"
   },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/baransu/elm-docs/issues"
+  },
+  "files": ["index.js"],
   "bin": {
     "elm-docs": "./index.js"
   },
-  "license": "MIT",
   "dependencies": {
     "chalk": "^2.0.1",
     "minimist": "^1.2.0"

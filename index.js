@@ -13,19 +13,31 @@ const ELM_PACKAGE_PATH = path.join(WORKING_DIR, 'elm-package.json');
 const ELM_MAKE_DOCS_OUTPUT = path.join(WORKING_DIR, TMP_DOCS);
 const DOCS_TEST = /^@docs\s/;
 
-// NOTE: We have to store all used names for propert anchor creation
+// NOTE: We have to store all used names for proper anchor creation
 let usedNames = [];
 
 const argv = require('minimist')(process.argv.slice(2));
 
 if (argv['h'] || argv['help']) {
-  // TODO: show help and gracefully exit with 0
-  console.log('Help:');
+  console.log(
+    `elm-docs: ${VERSION}
+
+Usage: elm-docs [--output FILE]
+
+Available options:
+  -h,--help                Show this help text
+  -v,--version             Show elm-docs version
+  -o,--output FILE         Write result to the given FILE.
+
+Examples:
+  elm-docs                            # generate documentation to DOCS.md
+  elm-docs --output DOCUMENTATION.md  # generate documentation to DOCUMENTATION.md`
+  );
   process.exit(0);
 }
 
 if (argv['v'] || argv['version']) {
-  console.log(`elm-docs version: ${VERSION}`);
+  console.log(`elm-docs: ${VERSION}`);
   process.exit(0);
 }
 
@@ -51,8 +63,7 @@ if (isElmPackagePresent) {
         .map(module => `- [${module.name}](#${makeAnchor(module.name)})`)
         .join('\n');
 
-      const modules = `
-# Modules
+      const modules = `# Modules
 ${tableOfContent}
 ${data.map(mapModule).join('\n')}
 > Generated with elm-make: ${version} and elm-docs: ${VERSION}
@@ -93,6 +104,7 @@ function makeAnchor(name) {
 
 function mapModule(module) {
   const { name, comment } = module;
+
   // NOTE: We're storing all previously used names for proper anchoring
   usedNames = usedNames.concat(getUsedNames(module));
 
