@@ -4,11 +4,13 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const pkg = require('./package.json');
+const os = require('os');
 
 const VERSION = pkg.version;
-const TMP_DOCS = '.elm-docs';
+const TMP_DOCS = '.elm-docs.json';
 const WORKING_DIR = process.cwd();
-const ELM_PACKAGE_PATH = path.join(WORKING_DIR, 'elm-package.json');
+const LEGACY_ELM_PACKAGE_PATH = path.join(WORKING_DIR, 'elm-package.json');
+const ELM_PACKAGE_PATH = path.join(WORKING_DIR, 'elm.json');
 const ELM_MAKE_DOCS_OUTPUT = path.join(WORKING_DIR, TMP_DOCS);
 const DOCS_TEST = /^@docs\s/;
 
@@ -42,41 +44,64 @@ if (argv['v'] || argv['version']) {
 
 const OUTPUT = argv['o'] || argv['output'] || 'DOCS.md';
 
-const isElmPackagePresent = fs.existsSync(ELM_PACKAGE_PATH);
-if (isElmPackagePresent) {
-  exec(`elm-make --yes --docs=${TMP_DOCS}`, (err, stdout, stderr) => {
-    if (err) throw err;
-    fs.readFile(ELM_MAKE_DOCS_OUTPUT, (err, file) => {
-      if (err) throw err;
-      fs.unlinkSync(ELM_MAKE_DOCS_OUTPUT);
-      const data = JSON.parse(file);
-      const count = data.length;
-      if (count === 0) {
-        console.log('Found 0 modules from elm-make --docs');
-        process.exit(1);
+const execPromise = command => new Promise(
+  (resolve, reject) => {
+    exec(command, (err, stdout) => {
+      if (err) {
+        reject(err);
+        return;
       }
 
-      const version = data[0]['generated-with-elm-version'];
+      resolve(stdout.replace(os.EOL, '').replace('\n', ''));
+    })
+  }
+);
 
-      const tableOfContent = data
-        .map(module => `- [${module.name}](#${makeAnchor(module.name)})`)
-        .join('\n');
+const isLegacyElmPackagePresent = fs.existsSync(LEGACY_ELM_PACKAGE_PATH);
+const isElmPackagePresent = isLegacyElmPackagePresent || fs.existsSync(ELM_PACKAGE_PATH);
+if (isElmPackagePresent) {
+  const commandsToExecute = isLegacyElmPackagePresent ?
+    [`elm-make --yes --docs=${TMP_DOCS}`] :
+    [`elm make --docs=${TMP_DOCS}`, `elm --version`];
 
-      const modules = `# Modules
+  Promise.all(commandsToExecute.map(execPromise)).then(
+    ([_, elmVersion]) => {
+
+      fs.readFile(ELM_MAKE_DOCS_OUTPUT, (err, file) => {
+        if (err) throw err;
+        fs.unlinkSync(ELM_MAKE_DOCS_OUTPUT);
+        const data = JSON.parse(file);
+        const count = data.length;
+        if (count === 0) {
+          console.log('Found 0 modules from elm-make --docs');
+          process.exit(1);
+        }
+
+        const version = data[0]['generated-with-elm-version'];
+
+        const tableOfContent = data
+          .map(module => `- [${module.name}](#${makeAnchor(module.name)})`)
+          .join('\n');
+
+        const modules = `# Modules
 ${tableOfContent}
 ${data.map(mapModule).join('\n')}
-> Generated with elm-make: ${version} and elm-docs: ${VERSION}
+> Generated with ${isLegacyElmPackagePresent ? `elm-make: ${version}` : `elm: ${elmVersion}`} and elm-docs: ${VERSION}
 `;
 
-      fs.writeFileSync(path.join(WORKING_DIR, OUTPUT), modules);
-      console.log(
-        `Successfully generated documentation for ${count} modules into ${OUTPUT}`
-      );
-    });
-  });
+        fs.writeFileSync(path.join(WORKING_DIR, OUTPUT), modules);
+        console.log(
+          `Successfully generated documentation for ${count} modules into ${OUTPUT}`
+        );
+      });
+
+    },
+    err => { throw err }
+  )
+
 } else {
   console.error(
-    `I couldn't find elm-package.json. Make sure you are in correct directory.`
+    `I couldn't find elm.json or elm-package.json. Make sure you are in correct directory.`
   );
 }
 
@@ -109,7 +134,7 @@ function mapModule(module) {
 
   const mapFunctions = {
     aliases: mapAlias,
-    types: mapType,
+    [isLegacyElmPackagePresent ? 'types' : 'unions']: mapType,
     values: mapValue
   };
 
@@ -141,10 +166,10 @@ function mapType(dict, type) {
   const string = `
 ### \`${name}\`
 \`\`\`elm
-type ${name} ${args.join(' ')}
-    = ${cases.map(c => `${c[0]} ${c[1].join(' ')}`).join('\n    | ')}
+type ${name} ${args.join(' ')} ${cases.length > 0 ? 
+  `\n    = ${cases.map(c => `${c[0]} ${c[1].join(' ')}`).join('\\n    | ')}` : ''}
 \`\`\`
-${comment}
+${comment}\n
 ---
 `;
   return Object.assign({}, dict, { [name]: string });
@@ -158,7 +183,7 @@ function mapAlias(dict, alias) {
 type alias ${name} ${args.join(' ')} =
     ${type}
 \`\`\`
-${comment}
+${comment}\n
 ---
 `;
   return Object.assign({}, dict, { [name]: string });
@@ -179,7 +204,7 @@ function mapValue(dict, value) {
 \`\`\`elm
 ${name} : ${type.replace(new RegExp(`${dict['@@module']}.`, 'g'), '')}
 \`\`\`
-${comment}
+${comment}\n
 ---
 `.replace(regex, wrapper);
   return Object.assign({}, dict, { [name]: string });
